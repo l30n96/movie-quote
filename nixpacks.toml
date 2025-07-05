@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["python39", "postgresql_16", "libmysqlclient", "gcc"]
+nixPkgs = ["python39", "postgresql", "gcc"]
 
 [phases.install]
 cmds = [
@@ -8,4 +8,4 @@ cmds = [
 ]
 
 [phases.start]
-cmd = "gunicorn config.wsgi"
+cmd = "gunicorn config.wsgi --bind 0.0.0.0:$PORT"
