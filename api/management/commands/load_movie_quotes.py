@@ -2,13 +2,13 @@ import json
 import os
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from api.models import Quote  # Anpassen falls dein Model anders heißt
+from api.models import Quote, Show, Role
 
 class Command(BaseCommand):
     help = 'Load movie quotes from original JSON file format'
 
     def handle(self, *args, **options):
-        # Pfad zur JSON-Datei (deine originale movie_quotes.json)
+        # Pfad zur JSON-Datei
         json_file_path = os.path.join(settings.BASE_DIR, 'movie_quotes.json')
         
         if not os.path.exists(json_file_path):
@@ -22,38 +22,54 @@ class Command(BaseCommand):
                 quotes_data = json.load(file)
             
             created_count = 0
+            shows_created = 0
+            roles_created = 0
             
             for quote_data in quotes_data:
-                # Arbeite direkt mit deinem JSON-Format:
-                # {"quote": "...", "movie": "...", "type": "movie", "year": 1890}
+                # Erstelle oder hole Show (Movie)
+                show, show_created = Show.objects.get_or_create(
+                    name=quote_data['movie']
+                )
+                if show_created:
+                    shows_created += 1
+                    self.stdout.write(f'🎬 Created show: {show.name}')
                 
+                # Erstelle oder hole Role (Character) - verwende "Unknown" da nicht in JSON
+                role, role_created = Role.objects.get_or_create(
+                    name='Unknown Character'
+                )
+                if role_created:
+                    roles_created += 1
+                    self.stdout.write(f'🎭 Created role: {role.name}')
+                
+                # Erstelle Quote mit korrekten Feldnamen
                 quote, created = Quote.objects.get_or_create(
-                    text=quote_data['quote'],  # 'quote' aus deiner JSON
+                    quote=quote_data['quote'],  # 'quote' field im Model
                     defaults={
-                        'movie': quote_data['movie'],           # 'movie' aus deiner JSON
-                        'character': 'Unknown',                 # Nicht in deiner JSON
-                        'author': 'Unknown',                    # Nicht in deiner JSON
-                        'year': quote_data.get('year', 2000),   # 'year' aus deiner JSON
-                        'censored': False,                      # Default
+                        'show': show,                                    # ForeignKey zu Show
+                        'role': role,                                    # ForeignKey zu Role  
+                        'contain_adult_lang': False,                     # Boolean field
                     }
                 )
                 
                 if created:
                     created_count += 1
                     self.stdout.write(
-                        f'✅ Created: "{quote.text[:50]}..." from {quote.movie}'
+                        f'✅ Created quote: "{quote.quote[:50]}..." from {show.name}'
                     )
                 else:
                     self.stdout.write(
-                        f'⚡ Already exists: "{quote.text[:30]}..."'
+                        f'⚡ Quote exists: "{quote.quote[:30]}..."'
                     )
             
             self.stdout.write(
                 self.style.SUCCESS(
                     f'\n🎬 Movie Quotes loaded successfully!\n'
-                    f'✅ New quotes created: {created_count}\n'
-                    f'📝 Total quotes processed: {len(quotes_data)}\n'
-                    f'🎭 Your API now has movie quotes!'
+                    f'✅ New quotes: {created_count}\n'
+                    f'🎬 New shows: {shows_created}\n'
+                    f'🎭 New roles: {roles_created}\n'
+                    f'📝 Total processed: {len(quotes_data)}\n'
+                    f'🚀 Your API now has {Quote.objects.count()} quotes!'
                 )
             )
             
