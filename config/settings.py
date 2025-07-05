@@ -50,7 +50,8 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        # path to load email templates
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -65,7 +66,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-# Database - Railway compatible
+# Database - Railway PostgreSQL ONLY
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
     # Use Railway's PostgreSQL database
@@ -77,31 +78,28 @@ if DATABASE_URL:
         )
     }
 else:
-    # Fallback to original MySQL config for local development
+    # Fallback to SQLite for local development (no MySQL)
     DATABASES = {
         'default': {
-            'ENGINE': "django.db.backends.mysql",
-            "NAME": os.environ.get("DB_NAME", "movie_quote"),
-            "USER": os.environ.get("DB_USER", "root"),
-            "PASSWORD": os.environ.get("DB_PASSWORD", ""),
-            "HOST": os.environ.get("DB_HOST", "localhost"),
-            "PORT": int(os.environ.get("DB_PORT", 3306)),
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
 
 # Password validation
+PASSWORD_VALIDATOR = 'django.contrib.auth.password_validation.'
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': f'{PASSWORD_VALIDATOR}UserAttributeSimilarityValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME': f'{PASSWORD_VALIDATOR}MinimumLengthValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME': f'{PASSWORD_VALIDATOR}CommonPasswordValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME': f'{PASSWORD_VALIDATOR}NumericPasswordValidator',
     },
 ]
 
@@ -186,3 +184,6 @@ if not DEBUG:
         SECURE_PROXY_SSL_HEADER = tuple(proxy_header_env.split(", "))
     else:
         SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Default primary key field type
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
