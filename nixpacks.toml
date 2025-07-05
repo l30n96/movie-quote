@@ -11,7 +11,7 @@ cmds = [
 cmds = [
     ". /opt/venv/bin/activate && python manage.py collectstatic --noinput --clear",
     ". /opt/venv/bin/activate && python manage.py migrate --noinput",
-    ". /opt/venv/bin/activate && python manage.py load_sample_data"
+    ". /opt/venv/bin/activate && python manage.py load_movie_quotes || echo 'Could not load quotes, continuing...'"
 ]
 
 [phases.start]
