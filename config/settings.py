@@ -1,16 +1,22 @@
 from pathlib import Path
 from datetime import timedelta
 import os
-
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = str(os.environ.get("CONFIG_SECRET_KEY"))
+# Railway-compatible SECRET_KEY handling
+SECRET_KEY = os.environ.get("CONFIG_SECRET_KEY") or os.environ.get("SECRET_KEY", "django-insecure-fallback-key-change-in-production")
 
 DEBUG = bool(int(os.environ.get("CONFIG_DEBUG", 0)))
 
-ALLOWED_HOSTS = os.environ.get("CONFIG_ALLOWED_HOSTS", []).split(", ")
-
+# Fix ALLOWED_HOSTS for Railway
+allowed_hosts_env = os.environ.get("CONFIG_ALLOWED_HOSTS", "")
+if allowed_hosts_env:
+    ALLOWED_HOSTS = allowed_hosts_env.split(", ")
+else:
+    # Allow Railway domains and common development hosts
+    ALLOWED_HOSTS = ['*']  # Railway will handle this, but you can restrict later
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -26,11 +32,11 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'drf_yasg',
     'corsheaders',
-
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Added for static files
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -44,8 +50,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # path to load email templates
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -59,51 +64,65 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
-# database configs
-DATABASES = {
-    'default': {
-        'ENGINE': "django.db.backends.mysql",
-        "NAME": os.environ.get("DB_NAME"),
-        "USER": os.environ.get("DB_USER"),
-        "PASSWORD": os.environ.get("DB_PASSWORD"),
-        "HOST": os.environ.get("DB_HOST"),
-        "PORT": int(os.environ.get("DB_PORT")),
+
+# Database - Railway compatible
+DATABASE_URL = os.environ.get('DATABASE_URL')
+if DATABASE_URL:
+    # Use Railway's PostgreSQL database
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
-PASSWORD_VALIDATOR = 'django.contrib.auth.password_validation.'
+else:
+    # Fallback to original MySQL config for local development
+    DATABASES = {
+        'default': {
+            'ENGINE': "django.db.backends.mysql",
+            "NAME": os.environ.get("DB_NAME", "movie_quote"),
+            "USER": os.environ.get("DB_USER", "root"),
+            "PASSWORD": os.environ.get("DB_PASSWORD", ""),
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": int(os.environ.get("DB_PORT", 3306)),
+        }
+    }
+
+# Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': f'{PASSWORD_VALIDATOR}UserAttributeSimilarityValidator',
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
     },
     {
-        'NAME': f'{PASSWORD_VALIDATOR}MinimumLengthValidator',
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': f'{PASSWORD_VALIDATOR}CommonPasswordValidator',
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        'NAME': f'{PASSWORD_VALIDATOR}NumericPasswordValidator',
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'America/New_York'
-
 USE_I18N = True
-
 USE_L10N = True
 # disabled to solve bugs with statistic visit object creation and complicities
-# with different timezones
+# with different timezones  
 USE_TZ = False
 
-# STATIC_URL = '/static/'
-# MEDIA_URL = '/media/'
-# MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# STATICFILES_DIRS = (
-#     os.path.join(BASE_DIR, 'static'),
-# )
+# Static files - Railway compatible
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static'),
+] if os.path.exists(os.path.join(BASE_DIR, 'static')) else []
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 
 REST_FRAMEWORK = {
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
@@ -120,6 +139,7 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
 }
+
 # simplejwt configs
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
@@ -142,6 +162,7 @@ SWAGGER_SETTINGS = {
 
 # ipstack api access key
 IPSTACK_ACCESS_KEY = os.environ.get("IPSTACK_ACCESS_KEY")
+
 # email configs
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get("CONFIG_EMAIL_HOST")
@@ -151,13 +172,17 @@ EMAIL_USE_TLS = True
 EMAIL_PORT = 587
 
 CORS_ALLOW_ALL_ORIGINS = True
+
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 259200
     # redirect HTTP request to HTTPS
     SECURE_SSL_REDIRECT = bool(
         int(os.environ.get("CONFIG_SECURE_SSL_REDIRECT", 1)))
-
-    SECURE_PROXY_SSL_HEADER = tuple(
-        os.environ.get("CONFIG_SECURE_PROXY_SSL_HEADER").split(", ")
-    )
+    
+    # Fix for Railway proxy headers
+    proxy_header_env = os.environ.get("CONFIG_SECURE_PROXY_SSL_HEADER")
+    if proxy_header_env:
+        SECURE_PROXY_SSL_HEADER = tuple(proxy_header_env.split(", "))
+    else:
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
